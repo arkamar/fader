@@ -30,6 +30,28 @@ get_value(const char * name) {
 }
 
 int
+set_value(const char * name, const int value) {
+	char buf[64];
+	int ret, len;
+	int fd;
+
+	fd = open(name, O_WRONLY);
+	if (fd == -1) {
+		perror("open");
+		return -1;
+	}
+
+	len = sprintf(buf, "%d", value);
+	ret = write(fd, buf, len);
+	close(fd);
+	if (ret != len) {
+		perror("write");
+		return -1;
+	}
+	return ret;
+}
+
+int
 main(int argc, char * argv[]) {
 	int ret, max, bri, act;
 
@@ -38,6 +60,16 @@ main(int argc, char * argv[]) {
 		perror("chdir");
 		return 1;
 	}
+
+	act = get_value("actual_brightness");
+	bri = get_value("brightness");
+	max = get_value("max_brightness");
+
+	fprintf(stderr, "act: %3d %3d%%\n", act, act * 100 / max);
+	fprintf(stderr, "bri: %3d %3d%%\n", bri, bri * 100 / max);
+	fprintf(stderr, "max: %3d %3d%%\n", max, max * 100 / max);
+
+	set_value("brightness", 400);
 
 	act = get_value("actual_brightness");
 	bri = get_value("brightness");
