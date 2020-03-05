@@ -6,6 +6,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "arg.h"
+
+char * argv0;
+
+void
+usage() {
+	fputs("faderd\n", stderr);
+	exit(0);
+}
+
 int
 get_value(const char * name) {
 	int fd;
@@ -55,9 +65,19 @@ set_value(const char * name, const int value) {
 int
 main(int argc, char * argv[]) {
 	int ret, max, bri, act;
+	char * backlight_device = "/sys/class/backlight/intel_backlight";
 	struct pollfd pfd[2];
 
-	ret = chdir("/sys/class/backlight/intel_backlight");
+	ARGBEGIN {
+	case 'd':
+		backlight_device = EARGF(usage());
+		break;
+	case 'h':
+	default:
+		usage();
+	} ARGEND
+
+	ret = chdir(backlight_device);
 	if (ret == -1) {
 		perror("chdir");
 		return 1;

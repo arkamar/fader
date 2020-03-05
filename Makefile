@@ -1,6 +1,7 @@
 CFLAGS ?= -O2 -pipe
 CFLAGS += -Wall -pedantic
 CFLAGS += -Werror=implicit-function-declaration
+CFLAGS += -Wimplicit-fallthrough
 
 BIN = faderd
 
