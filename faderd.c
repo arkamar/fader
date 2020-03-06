@@ -1,12 +1,17 @@
 #include <fcntl.h>
 #include <poll.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include "arg.h"
+#include "ipc.h"
 
 char * argv0;
 
@@ -67,6 +72,8 @@ main(int argc, char * argv[]) {
 	int ret, max, bri, act;
 	char * backlight_device = "/sys/class/backlight/intel_backlight";
 	struct pollfd pfd[2];
+	struct ipc ipc;
+	struct msg msg;
 
 	ARGBEGIN {
 	case 'd':
@@ -83,11 +90,20 @@ main(int argc, char * argv[]) {
 		return 1;
 	}
 
+	ipc_bind(&ipc);
+
+	pfd[0].fd = ipc.fd;
+	pfd[0].events = POLLIN;
+
 	while (1) {
-		ret = poll(pfd, 0, 10000);
+		ret = poll(pfd, 1, -1);
 		if (ret == -1) {
 			perror("poll");
 			break;
+		}
+
+		if (pfd[0].revents & POLLIN) {
+			ipc_msg_recv(&ipc, &msg);
 		}
 
 		act = get_value("actual_brightness");
