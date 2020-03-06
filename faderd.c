@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -54,6 +55,7 @@ set_value(const char * name, const int value) {
 int
 main(int argc, char * argv[]) {
 	int ret, max, bri, act;
+	struct pollfd pfd[2];
 
 	ret = chdir("/sys/class/backlight/intel_backlight");
 	if (ret == -1) {
@@ -61,23 +63,20 @@ main(int argc, char * argv[]) {
 		return 1;
 	}
 
-	act = get_value("actual_brightness");
-	bri = get_value("brightness");
-	max = get_value("max_brightness");
+	while (1) {
+		ret = poll(pfd, 0, 10000);
+		if (ret == -1) {
+			perror("poll");
+			break;
+		}
 
-	fprintf(stderr, "act: %3d %3d%%\n", act, act * 100 / max);
-	fprintf(stderr, "bri: %3d %3d%%\n", bri, bri * 100 / max);
-	fprintf(stderr, "max: %3d %3d%%\n", max, max * 100 / max);
+		act = get_value("actual_brightness");
+		bri = get_value("brightness");
+		max = get_value("max_brightness");
 
-	set_value("brightness", 400);
-
-	act = get_value("actual_brightness");
-	bri = get_value("brightness");
-	max = get_value("max_brightness");
-
-	fprintf(stderr, "act: %3d %3d%%\n", act, act * 100 / max);
-	fprintf(stderr, "bri: %3d %3d%%\n", bri, bri * 100 / max);
-	fprintf(stderr, "max: %3d %3d%%\n", max, max * 100 / max);
+		fprintf(stderr, "act: %3d %3d%% bri: %3d %3d%% max: %3d %3d%%\n",
+			act, act * 100 / max, bri, bri * 100 / max, max, max * 100 / max);
+	}
 
 	return 0;
 }
