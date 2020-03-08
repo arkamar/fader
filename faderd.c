@@ -13,6 +13,9 @@
 #include "arg.h"
 #include "ipc.h"
 
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+
 char * argv0;
 
 void
@@ -67,6 +70,48 @@ set_value(const char * name, const int value) {
 	return ret;
 }
 
+static
+int
+set_backlight(const enum fader_type type, int value) {
+	int act, max = get_value("max_brightness");
+
+	switch (type) {
+	case FADER_SET:
+		break;
+	case FADER_SET_PERC:
+		value = value * max / 100;
+		break;
+	case FADER_INC:
+		act = get_value("actual_brightness");
+		value = act + value;
+		break;
+	case FADER_INC_PERC:
+		act = get_value("actual_brightness");
+		value = act + value * max / 100;
+		break;
+	case FADER_DEC:
+		act = get_value("actual_brightness");
+		value = act - value;
+		break;
+	case FADER_DEC_PERC:
+		act = get_value("actual_brightness");
+		value = act - value * max / 100;
+		break;
+	case FADER_NOP:
+		fputs("nop\n", stderr);
+		return 0;
+	default:
+		fputs("Unknown type\n", stderr);
+		return -1;
+	};
+
+	value = MIN(value, max);
+	value = MAX(value, 1);
+	set_value("brightness", value);
+
+	return 0;
+}
+
 int
 main(int argc, char * argv[]) {
 	int ret, max, bri, act;
@@ -104,6 +149,7 @@ main(int argc, char * argv[]) {
 
 		if (pfd[0].revents & POLLIN) {
 			ipc_msg_recv(&ipc, &msg);
+			set_backlight(msg.type, msg.value);
 		}
 
 		act = get_value("actual_brightness");
