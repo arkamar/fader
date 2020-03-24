@@ -18,6 +18,13 @@
 
 char * argv0;
 
+static
+struct ctx {
+	int act_fd;
+	int bri_fd;
+	int max_fd;
+} ctx;
+
 void
 usage() {
 	fputs("faderd\n", stderr);
@@ -25,19 +32,12 @@ usage() {
 }
 
 int
-get_value(const char * name) {
-	int fd;
+get_value(const int fd) {
 	char buf[64];
 	ssize_t ret;
 
-	fd = open(name, O_RDONLY);
-	if (fd == -1) {
-		perror("open");
-		return -1;
-	}
-
+	lseek(fd, 0L, SEEK_SET);
 	ret = read(fd, buf, sizeof buf);
-	close(fd);
 	if (ret <= 0) {
 		perror("read");
 		return -1;
@@ -49,20 +49,13 @@ get_value(const char * name) {
 }
 
 int
-set_value(const char * name, const int value) {
+set_value(const int fd, const int value) {
 	char buf[64];
 	int ret, len;
-	int fd;
-
-	fd = open(name, O_WRONLY);
-	if (fd == -1) {
-		perror("open");
-		return -1;
-	}
 
 	len = sprintf(buf, "%d", value);
+	lseek(fd, 0L, SEEK_SET);
 	ret = write(fd, buf, len);
-	close(fd);
 	if (ret != len) {
 		perror("write");
 		return -1;
@@ -72,8 +65,34 @@ set_value(const char * name, const int value) {
 
 static
 int
+init_ctx(struct ctx * ctx) {
+	memset(ctx, 0, sizeof * ctx);
+
+	ctx->act_fd = open("actual_brightness", O_RDONLY);
+	if (ctx->act_fd == -1) {
+		perror("open actual_brightness");
+		return -1;
+	}
+
+	ctx->max_fd = open("max_brightness", O_RDONLY);
+	if (ctx->max_fd == -1) {
+		perror("open max_brightness");
+		return -1;
+	}
+
+	ctx->bri_fd = open("brightness", O_RDWR);
+	if (ctx->bri_fd == -1) {
+		perror("open brightness");
+		return -1;
+	}
+
+	return 0;
+}
+
+static
+int
 set_backlight(const enum fader_type type, int value) {
-	int act, max = get_value("max_brightness");
+	int act, max = get_value(ctx.max_fd);
 
 	switch (type) {
 	case FADER_SET:
@@ -82,19 +101,19 @@ set_backlight(const enum fader_type type, int value) {
 		value = value * max / 100;
 		break;
 	case FADER_INC:
-		act = get_value("actual_brightness");
+		act = get_value(ctx.act_fd);
 		value = act + value;
 		break;
 	case FADER_INC_PERC:
-		act = get_value("actual_brightness");
+		act = get_value(ctx.act_fd);
 		value = act + value * max / 100;
 		break;
 	case FADER_DEC:
-		act = get_value("actual_brightness");
+		act = get_value(ctx.act_fd);
 		value = act - value;
 		break;
 	case FADER_DEC_PERC:
-		act = get_value("actual_brightness");
+		act = get_value(ctx.act_fd);
 		value = act - value * max / 100;
 		break;
 	case FADER_NOP:
@@ -107,7 +126,7 @@ set_backlight(const enum fader_type type, int value) {
 
 	value = MIN(value, max);
 	value = MAX(value, 1);
-	set_value("brightness", value);
+	set_value(ctx.bri_fd, value);
 
 	return 0;
 }
@@ -137,6 +156,11 @@ main(int argc, char * argv[]) {
 
 	ipc_bind(&ipc);
 
+	ret = init_ctx(&ctx);
+	if (ret == -1) {
+		exit(1);
+	}
+
 	pfd[0].fd = ipc.fd;
 	pfd[0].events = POLLIN;
 
@@ -152,9 +176,9 @@ main(int argc, char * argv[]) {
 			set_backlight(msg.type, msg.value);
 		}
 
-		act = get_value("actual_brightness");
-		bri = get_value("brightness");
-		max = get_value("max_brightness");
+		act = get_value(ctx.act_fd);
+		bri = get_value(ctx.bri_fd);
+		max = get_value(ctx.max_fd);
 
 		fprintf(stderr, "act: %3d %3d%% bri: %3d %3d%% max: %3d %3d%%\n",
 			act, act * 100 / max, bri, bri * 100 / max, max, max * 100 / max);
