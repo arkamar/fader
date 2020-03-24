@@ -22,7 +22,7 @@ static
 struct ctx {
 	int act_fd;
 	int bri_fd;
-	int max_fd;
+	int max;
 } ctx;
 
 void
@@ -66,6 +66,8 @@ set_value(const int fd, const int value) {
 static
 int
 init_ctx(struct ctx * ctx) {
+	int max_fd;
+
 	memset(ctx, 0, sizeof * ctx);
 
 	ctx->act_fd = open("actual_brightness", O_RDONLY);
@@ -74,9 +76,14 @@ init_ctx(struct ctx * ctx) {
 		return -1;
 	}
 
-	ctx->max_fd = open("max_brightness", O_RDONLY);
-	if (ctx->max_fd == -1) {
+	max_fd = open("max_brightness", O_RDONLY);
+	if (max_fd == -1) {
 		perror("open max_brightness");
+		return -1;
+	}
+	ctx->max = get_value(max_fd);
+	close(max_fd);
+	if (ctx->max == -1) {
 		return -1;
 	}
 
@@ -92,7 +99,7 @@ init_ctx(struct ctx * ctx) {
 static
 int
 set_backlight(const enum fader_type type, int value) {
-	int act, max = get_value(ctx.max_fd);
+	int act, max = ctx.max;
 
 	switch (type) {
 	case FADER_SET:
@@ -178,7 +185,7 @@ main(int argc, char * argv[]) {
 
 		act = get_value(ctx.act_fd);
 		bri = get_value(ctx.bri_fd);
-		max = get_value(ctx.max_fd);
+		max = ctx.max;
 
 		fprintf(stderr, "act: %3d %3d%% bri: %3d %3d%% max: %3d %3d%%\n",
 			act, act * 100 / max, bri, bri * 100 / max, max, max * 100 / max);
